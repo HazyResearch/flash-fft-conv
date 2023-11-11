@@ -1,0 +1,10 @@
+*.npy
+*.json
+*.png
+
+*/*.npy
+*/*.json
+*/*.png
+
+*.DS_Store
+*/*.DS_Store
