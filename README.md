@@ -209,14 +209,14 @@ You can reach Dan at [danfu@cs.stanford.edu](mailto:danfu@cs.stanford.edu).
 You can also cite our work:
 ```
 @article{fu2023flashfftconv,
-  title={FlashFFTConv: Efficient Convolutions for Long Sequences with Tensor Cores},
+  title={Flash{FFTC}onv: Efficient Convolutions for Long Sequences with Tensor Cores},
   author={Fu, Daniel Y. and Kumbong, Hermann and Nguyen, Eric and R{\'e}, Christopher},
   booktitle={arXiv preprint},
   year={2023}
 }
 
 @inproceedings{fu2023monarch,
-  title={Monarch Mixer: A Simple Sub-Quadratic GEMM-Based Architecture},
+  title={Monarch {M}ixer: A Simple Sub-Quadratic GEMM-Based Architecture},
   author={Fu, Daniel Y. and Arora, Simran and Grogan, Jessica and Johnson, Isys and Eyuboglu, Sabri and Thomas, Armin W and Spector, Benjamin and Poli, Michael and Rudra, Atri and R{\'e}, Christopher},
   booktitle={Advances in Neural Information Processing Systems},
   year={2023}
