@@ -16,6 +16,8 @@ Paper:
 
 ![FlashFFTConv](assets/banner.png)
 
+![FlashFFTConv logo](assets/logo.png)
+
 ## Examples and Usage
 
 We've been happy to use FlashFFTConv to support various projects, including [Monarch Mixer](https://github.com/HazyResearch/m2), [Hyena/H3](https://github.com/HazyResearch/safari), [HyenaDNA](https://github.com/HazyResearch/hyena-dna), and more.
