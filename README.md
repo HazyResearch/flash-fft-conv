@@ -78,7 +78,7 @@ Usage:
 from flashfftconv import FlashFFTConv
 
 # size of the FFT
-flashfft = FlashFFTConv(32768, dtype=torch.float16)
+my_flashfftconv = FlashFFTConv(32768, dtype=torch.bfloat16) # generally more stable!
 
 # B is batch size, H is model dimension, L is sequence length
 B = 16
@@ -87,10 +87,10 @@ H = 768
 L = 16384
 
 # the input, B H L
-x = torch.randn(B, H, L, dtype=torch.float16) # for now, only fp16 supported
+x = torch.randn(B, H, L, dtype=torch.bfloat16) # same type as the input
 k = torch.randn(H, L, dtype=torch.float32) # kernel needs to be fp32 for now
 
-out = flashfft(x, k)
+out = my_flashfftconv(x, k)
 ```
 
 ### Example Model
@@ -100,7 +100,7 @@ out = flashfft(x, k)
 For example:
 ```Python
 import torch
-from flash_fft import FlashFFTConv
+from flashfftconv import FlashFFTConv
 
 def MyModel(torch.nn.Module):
     def __init__(self, H, seqlen, num_layers):
@@ -109,7 +109,7 @@ def MyModel(torch.nn.Module):
         self.H = H
         self.seqlen = seqlen
         self.num_layers = num_layers
-        self.flashfft = FlashFFTConv(seqlen, dtype=torch.float16)
+        self.flashfftconv = FlashFFTConv(seqlen, dtype=torch.bfloat16)
 
         # create your conv layers
         self.long_conv_layers = torch.nn.ModuleList([
@@ -119,7 +119,7 @@ def MyModel(torch.nn.Module):
 
         # add a pointer to the flashfft object in each layer
         for layer in self.long_conv_layers:
-            layer.flashfft = self.flashfft
+            layer.flashfftconv = self.flashfftconv
 
         ...
     
@@ -135,7 +135,7 @@ def ConvLayer(torch.nn.Module):
         ...
 
     def forward(self, x):
-        return self.flashfft(x, self.k) # self.flashfft comes from the wrapper model!
+        return self.flashfftconv(x, self.k) # self.flashfftconv comes from the wrapper model!
 ```
 
 ### Gating and Implicit Padding
@@ -190,6 +190,7 @@ Please see our paper for more benchmarks!
 ## Input Requirements and Notes
 Currently, we have a few requirements on the inputs to the interface:
 * We assume that the input `u` has shape `(B, H, L)`, and the kernel `k` has shape `(H, L)`.
+* We only support fp16 and bf16 for now. We generally find bf16 more stable during training.
 * These inputs must be contiguous in GPU memory (`u.is_contiguous()` should be True).
 * The FFT size (`seqlen` that `FlashFFTConv` is initialized with) must be a power of two between 256 and 4,194,304.
 * For FFT sizes larger than 32,768, `H` must be a multiple of 16.
