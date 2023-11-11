@@ -190,12 +190,11 @@ Please see our paper for more benchmarks!
 ## Input Requirements and Notes
 Currently, we have a few requirements on the inputs to the interface:
 * We assume that the input `u` has shape `(B, H, L)`, and the kernel `k` has shape `(H, L)`.
-* We only support fp16 and bf16 for now. We generally find bf16 more stable during training.
 * These inputs must be contiguous in GPU memory (`u.is_contiguous()` should be True).
 * The FFT size (`seqlen` that `FlashFFTConv` is initialized with) must be a power of two between 256 and 4,194,304.
 * For FFT sizes larger than 32,768, `H` must be a multiple of 16.
 * `L` can be smaller than FFT size but must be divisible by 2. For FFT sizes `512` and `2048`, `L` must be divisible by 4.
-* `FlashFFTConv` can be initialized by `dtype=torch.float16` or `dtype=torch.bfloat16`. FP16 is faster, so we recommend using it when possible. We've noticed in practice that BF16 may be necessary for gated architectures.
+* * We only support FP16 and BF16 for now. FP16 is faster, but we generally find BF16 more stable during training.
 
 ## Citation
 
