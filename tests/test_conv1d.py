@@ -85,3 +85,50 @@ def test_conv1d_blh_fwd(b, h, l, k, dtype):
     y_cuda = conv1d_cuda(x)
     
     assert torch.allclose(y_torch, rearrange(y_cuda, 'b l h -> b h l'), atol=1e-1)
+
+@pytest.mark.parametrize('b', [1, 2, 4, 8])
+@pytest.mark.parametrize('d', [768, 1024, 2048, 8192])
+@pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
+@pytest.mark.parametrize('k', [3, 5, 7])
+@pytest.mark.parametrize('dtype', [torch.float16])
+def test_conv1d_bhl_bwd(b, d, l, k, dtype):
+    torch.cuda.empty_cache() # empty cache between runs
+    torch.manual_seed(42)
+    device = 'cuda'
+    
+    padding =  (k -1)//2
+
+    torch.set_default_device(device)
+    torch.set_default_dtype(dtype)
+
+    conv1d_torch = nn.Conv1d(
+        in_channels = d,
+        out_channels = d,
+        kernel_size = k,
+        groups = d,
+        padding = padding
+    ).to("cuda:0").to(dtype)
+
+    conv1d_cuda = FlashDepthWiseConv1d(channels = d,
+                                kernel_size=k,
+                                padding=padding,
+                                weights=conv1d_torch.weight,
+                                bias=conv1d_torch.bias,
+                                is_bhl=True,
+                            ).to("cuda:0").to(dtype)
+
+    x = torch.randn([b, d, l], device='cuda:0', dtype=dtype)
+    x_cuda = x.clone().detach().requires_grad_(True)
+    dout = torch.randn([b, d, l], device='cuda:0', dtype=dtype)
+
+    x.requires_grad = True
+
+    y_torch = conv1d_torch(x)
+    y_cuda = conv1d_cuda(x_cuda)
+
+    y_torch.backward(dout, retain_graph=True)
+    y_cuda.backward(dout, retain_graph=True)
+
+    assert torch.allclose(conv1d_cuda.bias.grad, conv1d_torch.bias.grad, atol=1)
+    assert torch.allclose(conv1d_torch.weight.grad.squeeze(), conv1d_torch.weight.grad.squeeze(), atol=1)
+    assert torch.allclose(x_cuda.grad, x.grad, atol=1)

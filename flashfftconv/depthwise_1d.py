@@ -1,7 +1,7 @@
 # Copyright (c) 2023, Dan Fu and Hermann Kumbong.
 import torch
 import math
-from monarch_cuda import conv1d_forward
+from monarch_cuda import conv1d_forward, conv1d_backward
 from einops import rearrange
 
 class conv1dFunc(torch.autograd.Function):
@@ -13,17 +13,11 @@ class conv1dFunc(torch.autograd.Function):
         return outputs
 
     @staticmethod
-    def backward(ctx, grad_output):
-        # # print("grad_output", grad_output.shape)
-        # # print("grad output stride", grad_output.stride())
-        # input, weight, bias = ctx.saved_tensors
-        # grad_output  = grad_output.contiguous()
-        # #grad_bias = grad_output.sum(dim=1)
-        # # print("grad_bias", grad_bias.shape)
-        # # print("grad bias stride", grad_bias.stride())
-        # grad_input, grad_weight, grad_bias = conv1d_cuda.backward(grad_output, input, weight, bias, ctx.padding)
-        # return None,None, None, None
-        raise NotImplementedError
+    def backward(ctx, dout):
+        input, weight, bias = ctx.saved_tensors
+        dout  = dout.contiguous()
+        du, dk, dbias = conv1d_backward(dout, input, weight, bias, ctx.padding)
+        return du, dk, dbias, None, None
     
 #TODO: initialization    
 class FlashDepthWiseConv1d(torch.nn.Module):

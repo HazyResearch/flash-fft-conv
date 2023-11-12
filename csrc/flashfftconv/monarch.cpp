@@ -56,5 +56,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("butterfly_ifft_padded_gated_bf16_forward", &butterfly_ifft_padded_gated_bf16, "Butterfly ifft forward padded (CUDA)");
 
     m.def("conv1d_forward", &conv1d_fwd, "conv1d forward (CUDA)");
+    m.def("conv1d_backward", &conv1d_bwd, "conv1d backward (CUDA)");
     
 }

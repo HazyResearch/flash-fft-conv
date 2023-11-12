@@ -38,13 +38,13 @@ torch::Tensor conv1d_cuda_blh_bf16(
     uint padding);
 
 
-// std::vector<torch::Tensor> conv1d_backward_cuda(
-//     torch::Tensor grad_output,
-//     torch::Tensor input,
-//     torch::Tensor weight,
-//     torch::Tensor bias,
-//     uint padding
-// );
+std::vector<torch::Tensor> conv1d_backward_cuda_bhl(
+    torch::Tensor dout,
+    torch::Tensor input,
+    torch::Tensor weight,
+    torch::Tensor bias,
+    uint padding
+);
 
 
 torch::Tensor conv1d_fwd(
@@ -83,23 +83,17 @@ torch::Tensor conv1d_fwd(
     }
 }
 
-// std::vector<torch::Tensor> backward(
-//     torch::Tensor grad_output,
-//     torch::Tensor input,
-//     torch::Tensor weight,
-//     torch::Tensor bias,
-//     uint padding)
-// {
-//     CHECK_INPUT(grad_output);
-//     CHECK_INPUT(input);
-//     CHECK_INPUT(weight);
-//     CHECK_INPUT(bias);
+std::vector<torch::Tensor> conv1d_bwd(
+    torch::Tensor dout,
+    torch::Tensor input,
+    torch::Tensor weight,
+    torch::Tensor bias,
+    uint padding)
+{
+    CHECK_INPUT(dout);
+    CHECK_INPUT(input);
+    CHECK_INPUT(weight);
+    CHECK_INPUT(bias);
 
-//     return conv1d_backward_cuda(grad_output, input, weight, bias, padding);
-// }
-
-// PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
-// {
-//     m.def("forward", &conv1d, "short_filter forward (CUDA)");
-//     // m.def("backward", &backward, "1D depthwise convolution backward (CUDA)");
-// }
+    return conv1d_backward_cuda_bhl(dout, input, weight, bias, padding);;
+}

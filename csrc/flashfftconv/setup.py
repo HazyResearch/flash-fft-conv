@@ -58,7 +58,8 @@ setup(
             'conv1d/conv1d_bhl_bf16.cu',
             'conv1d/conv1d_bhl_half.cu',
             'conv1d/conv1d_blh_bf16.cu',
-            'conv1d/conv1d_blh_half.cu'
+            'conv1d/conv1d_blh_half.cu',
+            'conv1d/conv1d_bwd_cuda_bhl.cu',
         ],
         extra_compile_args={'cxx': ['-O3'],
                              'nvcc': append_nvcc_threads(['-O3', '-lineinfo', '--use_fast_math', '-std=c++17'] + cc_flag)
