@@ -35,6 +35,7 @@ python standalone_cifar.py
 **Requirements:** We recommend using the Nvidia PyTorch docker container. We've tested and developed this library on version [23.05](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch).
 * PyTorch 2.0 Required
 * We have tested with CUDA version 12.1 and toolkit version 12.1
+* We have tested this on A100 and H100, but it shoudl work on any Ampere/Hopper architecture (3090, 4090, etc)
 
 To check your CUDA version:
 * Run `nvcc --version` and check the version number of your CUDA toolkit. Our Docker ships with version 12.1.
