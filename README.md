@@ -12,7 +12,7 @@ This module is useful for additional speedup for language models like Monarch Mi
 
 **FlashFFTConv: Efficient Convolutions for Long Sequences with Tensor Cores**  
 Daniel Y. Fu\*, Hermann Kumbong\*, Eric Nguyen, Christopher Ré\
-Paper: 
+Paper: https://arxiv.org/abs/2311.05908
 
 ![FlashFFTConv](assets/banner.png)
 
@@ -214,7 +214,7 @@ You can also cite our work:
 @article{fu2023flashfftconv,
   title={Flash{FFTC}onv: Efficient Convolutions for Long Sequences with Tensor Cores},
   author={Fu, Daniel Y. and Kumbong, Hermann and Nguyen, Eric and R{\'e}, Christopher},
-  booktitle={arXiv preprint},
+  booktitle={arXiv preprint arXiv:2311.05908},
   year={2023}
 }
 
