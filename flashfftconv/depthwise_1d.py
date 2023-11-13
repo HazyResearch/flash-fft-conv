@@ -9,6 +9,7 @@ class conv1dFunc(torch.autograd.Function):
     def forward(ctx, input, weights, bias, padding, is_bhl=True):
         outputs = conv1d_forward(input, weights, bias, padding, is_bhl)
         ctx.padding = padding
+        ctx.is_bhl = is_bhl
         ctx.save_for_backward(input, weights, bias)
         return outputs
 
@@ -16,7 +17,7 @@ class conv1dFunc(torch.autograd.Function):
     def backward(ctx, dout):
         input, weight, bias = ctx.saved_tensors
         dout  = dout.contiguous()
-        du, dk, dbias = conv1d_backward(dout, input, weight, bias, ctx.padding)
+        du, dk, dbias = conv1d_backward(dout, input, weight, bias, ctx.padding, ctx.is_bhl)
         return du, dk, dbias, None, None
     
 #TODO: initialization    

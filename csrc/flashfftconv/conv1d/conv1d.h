@@ -38,7 +38,15 @@ torch::Tensor conv1d_cuda_blh_bf16(
     uint padding);
 
 
-std::vector<torch::Tensor> conv1d_backward_cuda_bhl(
+std::vector<torch::Tensor> conv1d_backward_bhl_cuda(
+    torch::Tensor dout,
+    torch::Tensor input,
+    torch::Tensor weight,
+    torch::Tensor bias,
+    uint padding
+);
+
+std::vector<torch::Tensor> conv1d_backward_blh_cuda(
     torch::Tensor dout,
     torch::Tensor input,
     torch::Tensor weight,
@@ -88,12 +96,17 @@ std::vector<torch::Tensor> conv1d_bwd(
     torch::Tensor input,
     torch::Tensor weight,
     torch::Tensor bias,
-    uint padding)
+    uint padding,
+    bool is_bhl)
 {
     CHECK_INPUT(dout);
     CHECK_INPUT(input);
     CHECK_INPUT(weight);
     CHECK_INPUT(bias);
-
-    return conv1d_backward_cuda_bhl(dout, input, weight, bias, padding);;
+  
+    if(is_bhl){
+        return conv1d_backward_bhl_cuda(dout, input, weight, bias, padding);
+    } else{
+        return conv1d_backward_blh_cuda(dout, input, weight, bias, padding);
+    }
 }

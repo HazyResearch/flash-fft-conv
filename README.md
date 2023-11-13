@@ -5,10 +5,8 @@ This repository contains the official code for FlashFFTConv, a fast algorithm fo
 FlashFFTConv computes convolutions up to 7.93 times faster than PyTorch FFT convolutions, with up to 8.21 times less memory usage.
 FlashFFTConv supports convolution kernel lengths up to 4,194,304.
 
-<!--
-We also provide a fast kernel for short 1D depthwise convolutions (e.g., where the kernel length is on the order of 3/4), which runs XX times faster than PyTorch Conv1D.
+We also provide a fast kernel for short 1D depthwise convolutions (e.g., where the kernel length is on the order of 3/5), which runs 7 times faster than PyTorch Conv1D.
 This module is useful for additional speedup for language models like Monarch Mixer, H3, and Hyena.
--->
 
 **FlashFFTConv: Efficient Convolutions for Long Sequences with Tensor Cores**  
 Daniel Y. Fu\*, Hermann Kumbong\*, Eric Nguyen, Christopher Ré\
@@ -61,11 +59,12 @@ pytest -s -q tests/test_flashfftconv.py
 
 This test should run on machines with 40GB of GPU memory.
 
-<!--
 ### Short Depthwise Kernel
 
-To install our fast depthwise kernel, run... TODO: instructions!
--->
+The short depthwise kernel is also installed with these commands. You can run this like this:
+```
+pytest -s -q tests/test_conv1d.py
+```
 
 ## How to Use FlashFFTConv
 
@@ -174,8 +173,41 @@ flashfftconv = FlashFFTConv(2 * L, dtype=torch.bfloat16) # bf16 is usually neces
 y = flashfftconv(u, k, in_gate, out_gate)
 ```
 
+### Short Depthwise Convolutions
+
+For short, depthwise convolutions (`groups = dimension` in PyTorch Conv1D), you can run them like this:
+```Python
+from flashfftconv import FlashDepthwiseConv1d
+
+# set up PyTorch equivalent to get the weights
+# in_channels = out_channels, and kernel size must be odd
+conv1d_torch = nn.Conv1d(
+    in_channels = d,
+    out_channels = d,
+    kernel_size = k,
+    groups = d,
+    padding = padding,
+    dtype = dtype
+)
+
+flash_conv1d = FlashDepthWiseConv1d(
+    channels = d,
+    kernel_size=k,
+    padding=padding,
+    weights=conv1d_torch.weight,
+    bias=conv1d_torch.bias,
+    dtype = dtype
+)
+
+out_torch = conv1d_torch(x) # x is B, d, L
+out_flash = flash_conv1d(x)
+
+# out_torch and out_flash should be the same!
+```
+
 ## Benchmarking
 
+### FlashFFTConv Benchmarks
 To run FlashFFTConv benchmarks, install the module and run `python benchmarks/benchmark_flashfftconv.py`.
 
 These are the runtimes we see for a gated convolution for various sequence lengths, on one H100-SXM.
@@ -190,14 +222,44 @@ All results scaled to batch size 64, hidden dimension 768.
 
 Please see our paper for more benchmarks!
 
+### Short Depthwise Convolution Benchmarks
+To benchmark short depthwise convolutions, install the module and run `python benchmarks/benchmark_conv1d.py`.
+
+Here are some results for BLH input on H100:
+```
++----+------+------+---+-----------------+---------------+---------+
+| B  |  L   |  D   | K | torch time (ms) | cudatime (ms) | speedup |
++----+------+------+---+-----------------+---------------+---------+
+| 16 | 1024 | 768  | 5 |       0.19      |      0.03     |   5.50  |
+| 16 | 1024 | 1024 | 5 |       0.25      |      0.04     |   6.00  |
+| 16 | 1024 | 2048 | 5 |       0.50      |      0.08     |   6.50  |
+| 16 | 1024 | 8192 | 5 |       2.08      |      0.29     |   7.21  |
+| 16 | 2048 | 768  | 5 |       0.37      |      0.06     |   5.91  |
+| 16 | 2048 | 1024 | 5 |       0.50      |      0.08     |   6.33  |
+| 16 | 2048 | 2048 | 5 |       1.00      |      0.15     |   6.77  |
+| 16 | 2048 | 8192 | 5 |       4.17      |      0.57     |   7.31  |
+| 16 | 4096 | 768  | 5 |       0.74      |      0.12     |   6.17  |
+| 16 | 4096 | 1024 | 5 |       0.99      |      0.15     |   6.56  |
+| 16 | 4096 | 2048 | 5 |       2.03      |      0.29     |   7.04  |
+| 16 | 4096 | 8192 | 5 |       8.25      |      1.14     |   7.27  |
+| 16 | 8192 | 768  | 5 |       1.49      |      0.23     |   6.36  |
+| 16 | 8192 | 1024 | 5 |       2.01      |      0.30     |   6.80  |
+| 16 | 8192 | 2048 | 5 |       4.10      |      0.57     |   7.18  |
+| 16 | 8192 | 8192 | 5 |      16.42      |      2.26     |   7.26  |
++----+------+------+---+-----------------+---------------+---------+
+```
+
+We also support BHL input, but it's a bit slower (still optimizing!).
+
 ## Input Requirements and Notes
-Currently, we have a few requirements on the inputs to the interface:
+Currently, we have a few requirements on the inputs to the interface to FlashFFTConv:
 * We assume that the input `u` has shape `(B, H, L)`, and the kernel `k` has shape `(H, L)`.
 * These inputs must be contiguous in GPU memory (`u.is_contiguous()` should be True).
 * The FFT size (`seqlen` that `FlashFFTConv` is initialized with) must be a power of two between 256 and 4,194,304.
 * For FFT sizes larger than 32,768, `H` must be a multiple of 16.
 * `L` can be smaller than FFT size but must be divisible by 2. For FFT sizes `512` and `2048`, `L` must be divisible by 4.
-* * We only support FP16 and BF16 for now. FP16 is faster, but we generally find BF16 more stable during training.
+* We only support FP16 and BF16 for now. FP16 is faster, but we generally find BF16 more stable during training.
+* For short depthwise convs, we only support FP16 for now, and the kernel size has to be odd.
 
 ## Citation
 

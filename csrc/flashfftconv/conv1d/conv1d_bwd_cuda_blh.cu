@@ -11,13 +11,16 @@ const uint BX = 128;
 const uint BY = 1;
 const uint BZ = 1;
 
-const uint TILE_SIZE = 4;
-
 template <typename scalar_t>
 __global__ void conv1d_backward_kernel(
     const scalar_t* __restrict__ dout,
+    int dout_stride0,
+    int dout_stride1,
+    int dout_stride2,
     const scalar_t* __restrict__ u,
     const scalar_t* __restrict__ weights,
+    int weights_stride0,
+    int weights_stride1,
     scalar_t* __restrict__ du,
     scalar_t* __restrict__ dk,
     uint B,
@@ -32,6 +35,7 @@ __global__ void conv1d_backward_kernel(
     const int l = blockIdx.x; 
 
     //construct the du matrix
+    //construct the du matrix
     if(b < B && d < D && l == 0){
         for(int j = threadIdx.x; j < L; j += blockDim.x)
         {
@@ -42,10 +46,10 @@ __global__ void conv1d_backward_kernel(
                 int idx = - P + k + j;
 
                 if(idx >= 0 && idx < L){
-                    sum += dout[b * D * L + d * L + idx] * weights[d * K + K - (k +1)];
+                    sum += dout[b * dout_stride0 + d * dout_stride1 + idx * dout_stride2] * weights[d * weights_stride1 + (K - (k +1)) * weights_stride0];
                 }
             }
-            du[b * D * L + d * L + j] = sum;
+            du[b * D * L + j * D + d] = sum;
         }
     }
 
@@ -58,14 +62,14 @@ __global__ void conv1d_backward_kernel(
             if(k - P + j < 0 || k - P + j >= L){
                 dk[b * D * K * L + d * K * L + k * L + j] = 0;
             }else{
-                dk[b * D * K * L + d * K * L + k * L + j] = u[b * D * L + d * L + k - P + j];
+                dk[b * D * K * L + d * K * L + k * L + j] = u[b * D * L + (k - P + j) * D + d];
             }
         }
     }
 
 }
 
-std::vector<torch::Tensor> conv1d_backward_bhl_cuda(
+std::vector<torch::Tensor> conv1d_backward_blh_cuda(
     torch::Tensor dout,
     torch::Tensor u,
     torch::Tensor weight,
@@ -73,18 +77,20 @@ std::vector<torch::Tensor> conv1d_backward_bhl_cuda(
     uint padding)
 {
     const uint b = u.size(0);
-    const uint d = u.size(1);
-    const uint l = u.size(2);
+    const uint l = u.size(1);
+    const uint d = u.size(2);
 
-    const uint k = weight.squeeze().size(1);
+
+    const uint k = weight.squeeze().size(0);
     
     dim3 blockDims(BX, 1, 1);
 
     dim3 gridDims(l, d, b);
 
-    torch::Tensor du = torch::empty({b, d, l}, u.options());
+    torch::Tensor du = torch::empty({b, l, d}, u.options());
     torch::Tensor dk = torch::empty({b, d, k, l}, weight.options());
-    torch::Tensor dbias = dout.sum(-1).sum(0);
+    torch::Tensor dbias = dout.sum(-2).sum(0);
+    dout = dout.transpose(-1,-2);
 
     AT_DISPATCH_FLOATING_TYPES_AND2(
         at::kHalf, at::kBFloat16, u.type(),
@@ -92,8 +98,13 @@ std::vector<torch::Tensor> conv1d_backward_bhl_cuda(
         ([&]
             { conv1d_backward_kernel<scalar_t><<<gridDims, blockDims>>>(
                     dout.data<scalar_t>(),
+                    dout.stride(0),
+                    dout.stride(1),
+                    dout.stride(2),
                     u.data<scalar_t>(),
                     weight.data<scalar_t>(),
+                    weight.stride(0),
+                    weight.stride(1),
                     du.data<scalar_t>(),
                     dk.data<scalar_t>(),
                     b,
@@ -104,5 +115,5 @@ std::vector<torch::Tensor> conv1d_backward_bhl_cuda(
             }
         )
     );
-    return {du, torch::matmul(dk, dout.unsqueeze(-1)).squeeze(-1).sum(0), dbias};
+    return {du, torch::matmul(dk, dout.unsqueeze(-1)).squeeze(-1).sum(0).view({k, d}), dbias};
 }
