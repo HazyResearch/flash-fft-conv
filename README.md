@@ -226,10 +226,10 @@ Please see our paper for more benchmarks!
 To benchmark short depthwise convolutions, install the module and run `python benchmarks/benchmark_conv1d.py`.
 
 Here are some results for BLH input on H100:
-```
-+----+------+------+---+-----------------+---------------+---------+
+
+
 | B  |  L   |  D   | K | torch time (ms) | cudatime (ms) | speedup |
-+----+------+------+---+-----------------+---------------+---------+
+| --- | --- | --- | --- | --- | --- | --- | 
 | 16 | 1024 | 768  | 5 |       0.19      |      0.03     |   5.50  |
 | 16 | 1024 | 1024 | 5 |       0.25      |      0.04     |   6.00  |
 | 16 | 1024 | 2048 | 5 |       0.50      |      0.08     |   6.50  |
@@ -246,8 +246,7 @@ Here are some results for BLH input on H100:
 | 16 | 8192 | 1024 | 5 |       2.01      |      0.30     |   6.80  |
 | 16 | 8192 | 2048 | 5 |       4.10      |      0.57     |   7.18  |
 | 16 | 8192 | 8192 | 5 |      16.42      |      2.26     |   7.26  |
-+----+------+------+---+-----------------+---------------+---------+
-```
+
 
 We also support BHL input, but it's a bit slower (still optimizing!).
 
