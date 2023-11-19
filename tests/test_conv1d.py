@@ -9,7 +9,7 @@ import pytest
 @pytest.mark.parametrize('h', [768, 1024, 2048, 8192])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
-@pytest.mark.parametrize('dtype', [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize('dtype', [torch.float16, torch.bfloat16, torch.float32])
 def test_conv1d_bhl_fwd(b, h, l, k, dtype):
     torch.cuda.empty_cache() # empty cache between runs
     torch.manual_seed(42)
@@ -48,7 +48,7 @@ def test_conv1d_bhl_fwd(b, h, l, k, dtype):
 @pytest.mark.parametrize('h', [768, 1024, 2048, 8192])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
-@pytest.mark.parametrize('dtype', [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize('dtype', [torch.float16, torch.bfloat16, torch.float32])
 def test_conv1d_blh_fwd(b, h, l, k, dtype):
     torch.cuda.empty_cache() # empty cache between runs
     torch.manual_seed(42)
@@ -138,7 +138,7 @@ def test_conv1d_bhl_bwd(b, d, l, k, dtype):
 @pytest.mark.parametrize('d', [768, 1024, 2048, 8192])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
-@pytest.mark.parametrize('dtype', [torch.float16])
+@pytest.mark.parametrize('dtype', [torch.float16, torch.float32])
 def test_conv1d_blh_bwd(b, d, l, k, dtype):
     torch.cuda.empty_cache() # empty cache between runs
     torch.manual_seed(42)

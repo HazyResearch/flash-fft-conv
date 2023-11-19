@@ -1,5 +1,3 @@
-// Copyright (c) 2023 Dan Fu, Hermann Kumbong
-
 // Simple 1D depthwise convolution implementation with dilation and stride = 1
 
 #include <torch/extension.h>
@@ -17,9 +15,15 @@ const uint BZ = 1;
 const uint TILE_SIZE_L = 4;
 const uint TILE_SIZE_D = 1;
 
-__forceinline__ __device__ __nv_bfloat16 _conv1d_k_3(const __nv_bfloat16* u, const __nv_bfloat16* weights, const __nv_bfloat16* bias, uint padding, uint l, uint d, uint L, uint D, uint K)
+__forceinline__ __device__ float __hfma(const float a, const float b, const float c)
 {
-    __nv_bfloat16 tmp = bias[d];
+    return a * b + c;
+}
+
+template<typename T>
+__forceinline__ __device__ T _conv1d_k_3(const T* u, const T* weights, const T* bias, uint padding, uint l, uint d, uint L, uint D, uint K)
+{
+    T tmp = bias[d];
 
     int idx = l - padding;
 
@@ -40,11 +44,12 @@ __forceinline__ __device__ __nv_bfloat16 _conv1d_k_3(const __nv_bfloat16* u, con
     return tmp;
 }
 
+template<typename T>
 __global__ void conv1d_kernel(
-    const __nv_bfloat16 *__restrict__ u,
-    const __nv_bfloat16 *__restrict__ weights,
-    const __nv_bfloat16 *__restrict__ bias,
-    __nv_bfloat16 *__restrict__ out,
+    const T *__restrict__ u,
+    const T *__restrict__ weights,
+    const T *__restrict__ bias,
+    T *__restrict__ out,
     uint padding,
     uint B,
     uint L,
@@ -56,9 +61,8 @@ __global__ void conv1d_kernel(
     const int b = blockIdx.z * blockDim.z + threadIdx.z;
     const int d = blockIdx.y * blockDim.y * TILE_SIZE_D + threadIdx.y;
     const int l_offset = blockIdx.x * blockDim.x * TILE_SIZE_L + threadIdx.x;
-
     
-    __nv_bfloat16 tmp; 
+    T tmp; 
     int idx;
     int l;
 
@@ -84,7 +88,7 @@ __global__ void conv1d_kernel(
     
 }
 
-torch::Tensor conv1d_cuda_bhl_bf16(
+torch::Tensor conv1d_cuda_bhl(
     torch::Tensor u,
     torch::Tensor weight,
     torch::Tensor bias,
@@ -105,20 +109,50 @@ torch::Tensor conv1d_cuda_bhl_bf16(
 
     torch::Tensor out = torch::empty({b, d, l_out}, u.options());
 
-    cudaFuncSetCacheConfig(conv1d_kernel, cudaFuncCachePreferL1);
+    //cudaFuncSetCacheConfig(conv1d_kernel, cudaFuncCachePreferL1);
 
-    conv1d_kernel<<<gridDims, blockDims>>>(
-        static_cast<__nv_bfloat16 *>(u.data_ptr()),
-        static_cast<__nv_bfloat16 *>(weight.data_ptr()),
-        static_cast<__nv_bfloat16 *>(bias.data_ptr()),
-        static_cast<__nv_bfloat16 *>(out.data_ptr()),
-        padding,
-        b,
-        l,
-        d,
-        k,
-        l_out
-        );
+    if(u.dtype() == torch::kFloat32){
+        conv1d_kernel<<<gridDims, blockDims>>>(
+            static_cast<const float *>(u.data_ptr()),
+            static_cast<const float *>(weight.data_ptr()),
+            static_cast<const float *>(bias.data_ptr()),
+            static_cast<float *>(out.data_ptr()),
+            padding,
+            b,
+            l,
+            d,
+            k,
+            l_out
+            );
+    }else if(u.dtype() == torch::kFloat16){
+        conv1d_kernel<<<gridDims, blockDims>>>(
+            static_cast<const __half *>(u.data_ptr()),
+            static_cast<const __half *>(weight.data_ptr()),
+            static_cast<const __half *>(bias.data_ptr()),
+            static_cast<__half *>(out.data_ptr()),
+            padding,
+            b,
+            l,
+            d,
+            k,
+            l_out
+            );
+    }else if(u.dtype() == torch::kBFloat16){
+        conv1d_kernel<<<gridDims, blockDims>>>(
+            static_cast<const __nv_bfloat16 *>(u.data_ptr()),
+            static_cast<const __nv_bfloat16 *>(weight.data_ptr()),
+            static_cast<const __nv_bfloat16 *>(bias.data_ptr()),
+            static_cast<__nv_bfloat16 *>(out.data_ptr()),
+            padding,
+            b,
+            l,
+            d,
+            k,
+            l_out
+            );
+    } else{
+        printf("Unsupported data type\n");
+    }
 
     return out;
 }
