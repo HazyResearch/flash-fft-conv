@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Dan Fu, Hermann Kumbong
+
 // Simple 1D depthwise convolution implementation with dilation and stride = 1
 
 #include <torch/extension.h>
