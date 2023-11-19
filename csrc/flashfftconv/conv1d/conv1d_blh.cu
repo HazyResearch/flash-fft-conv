@@ -1,3 +1,5 @@
+// Copyright (c) 2023 Dan Fu, Hermann Kumbong
+
 // Simple 1D depthwise convolution implementation with dilation and stride = 1
 
 #include <torch/extension.h>
@@ -21,6 +23,42 @@ __forceinline__ __device__ float2 __hfma2(const float2 a, const float2 b, const 
     return make_float2(a.x * b.x + c.x, a.y * b.y + c.y);
 }
 
+template<typename T>
+__forceinline__ __device__ void set_value(T* dst, T src)
+{
+    *dst = src;
+}
+
+__forceinline__ __device__ void set_value(__half2* dst, float2 src)
+{
+    *dst = __float22half2_rn(src);
+}
+
+__forceinline__ __device__ void set_value(__nv_bfloat162* dst, float2 src)
+{
+    *dst = __float22bfloat162_rn(src);
+}
+
+__forceinline__ __device__ void set_value(float2* dst, __half2 src)
+{
+    *dst = __half22float2(src);
+}
+
+__forceinline__ __device__ void set_value(float2* dst, __nv_bfloat162 src)
+{
+    *dst = __bfloat1622float2(src);
+}
+
+__forceinline__ __device__ void set_value(__half2* dst, __nv_bfloat162 src)
+{
+    *dst = __float22half2_rn(__bfloat1622float2(src));
+}
+
+__forceinline__ __device__ void set_value(__nv_bfloat162* dst, __half2 src)
+{
+    *dst = __float22bfloat162_rn(__half22float2(src));
+}
+
 // Trick to do padding in place without actually creating a new tensor
 __forceinline__ __device__ __half2 get_u(const __half2 *__restrict__ u, uint L_eff, uint l, uint p, uint b, uint k, uint d, uint L, uint D, uint K)
 {
@@ -40,23 +78,30 @@ __forceinline__ __device__ float2 get_u(const float2 *__restrict__ u, uint L_eff
 
 
 //manually unrolling loop for k = 3 leads to good perf, can easily extend for other values of k if need be
-template<typename T>
-__forceinline__ __device__ T _conv1d_k_3(const T* u, const T* weights, const T* bias, T* out, uint padding, uint b, uint l, uint d, uint t, uint L, uint D, uint K, uint L_eff, uint L_out)
+template<typename T, typename U>
+__forceinline__ __device__ T _conv1d_k_3(const T* u, const U* weights, const U* bias, T* out, uint padding, uint b, uint l, uint d, uint t, uint L, uint D, uint K, uint L_eff, uint L_out)
 {
 
-    T temp_sum = bias[d];
+    T tmp;
+    T weight;
+    set_value(&tmp, bias[d]);
 
-    temp_sum = __hfma2(get_u(u, L_eff, l + t, padding, b, 0, d, L, D, K), weights[0 * D + d], temp_sum);
-    temp_sum = __hfma2(get_u(u, L_eff, l + t, padding, b, 1, d, L, D, K), weights[1 * D + d], temp_sum);
-    out[b * D * L_out  + (l + t) * D + d] = __hfma2(get_u(u, L_eff, l + t, padding, b, 2, d, L, D, K), weights[2 * D + d], temp_sum);
+    set_value(&weight, weights[0 * D + d]);
+    tmp = __hfma2(get_u(u, L_eff, l + t, padding, b, 0, d, L, D, K), weight, tmp);
+
+    set_value(&weight, weights[1 * D + d]);
+    tmp = __hfma2(get_u(u, L_eff, l + t, padding, b, 1, d, L, D, K), weight, tmp);
+
+    set_value(&weight, weights[2 * D + d]);
+    out[b * D * L_out  + (l + t) * D + d] = __hfma2(get_u(u, L_eff, l + t, padding, b, 2, d, L, D, K), weight, tmp);
 
 }
 
-template<typename T>
+template<typename T, typename U>
 __global__ void conv1d_kernel_k_3(
     const T *__restrict__ u,
-    const T *__restrict__ weights,
-    const T *__restrict__ bias,
+    const U *__restrict__ weights,
+    const U *__restrict__ bias,
     T *__restrict__ out,
     uint padding,
     uint B,
@@ -73,27 +118,27 @@ __global__ void conv1d_kernel_k_3(
     int d;
 
     #pragma unroll
-        for (int i = 0; i < TILE_SIZE_X; i++)
-        {   
-            d = d_block + threadIdx.x + i * BX;
+    for (int i = 0; i < TILE_SIZE_X; i++)
+    {   
+        d = d_block + threadIdx.x + i * BX;
 
-            if (d < D && b < B){
-                #pragma unroll
-                for (int t = 0; t < TILE_SIZE_Y; t++){
-                    if (l + t < L_eff - K + 1)
-                    {
-                        _conv1d_k_3(u, weights, bias, out, padding, b, l, d, t, L, D, K, L_eff, L_out);
-                    }
+        if (d < D && b < B){
+            #pragma unroll
+            for (int t = 0; t < TILE_SIZE_Y; t++){
+                if (l + t < L_eff - K + 1)
+                {
+                    _conv1d_k_3(u, weights, bias, out, padding, b, l, d, t, L, D, K, L_eff, L_out);
                 }
             }
         }
+    }
 }
 
-template<typename T>
+template<typename T, typename U>
 __global__ void conv1d_kernel(
     const T *__restrict__ u,
-    const T *__restrict__ weights,
-    const T *__restrict__ bias,
+    const U *__restrict__ weights,
+    const U *__restrict__ bias,
     T *__restrict__ out,
     uint padding,
     uint B,
@@ -108,22 +153,27 @@ __global__ void conv1d_kernel(
     const int b = blockIdx.z * blockDim.z + threadIdx.z;
 
     int d;
+    T tmp;
+    T weight;
 
     #pragma unroll
         for (int i = 0; i < TILE_SIZE_X; i++)
         {   
             d = d_block + threadIdx.x + i * BX;
-
+            
             if (d < D && b < B){
                 #pragma unroll
                 for (int t = 0; t < TILE_SIZE_Y; t++){
                     if (l + t < L_eff - K + 1)
                     {
-                        T temp_sum = bias[d];
+                        set_value(&tmp, bias[d]);
+
                         for(int k = 0; k < K; k++){
-                            temp_sum = __hfma2(get_u(u, L_eff, l + t, padding, b, k, d, L, D, K), weights[k * D + d], temp_sum);
+                            set_value(&weight, weights[k * D + d]);
+
+                            tmp = __hfma2(get_u(u, L_eff, l + t, padding, b, k, d, L, D, K), weight, tmp);
                         }
-                            out[b * D * L_out  + (l + t) * D + d] = temp_sum;
+                            out[b * D * L_out  + (l + t) * D + d] = tmp;
                     }
                 }
             }
@@ -158,91 +208,273 @@ torch::Tensor conv1d_cuda_blh(
     //calling seperate kernels for k=3 and k!=3 leads to better perf
     if(k==3){
         if(u.dtype() == torch::kFloat16){
-            conv1d_kernel<<<gridDims, blockDims>>>(
-                static_cast<__half2 *>(u.data_ptr()),
-                static_cast<__half2 *>(weight.data_ptr()),
-                static_cast<__half2 *>(bias.data_ptr()),
-                static_cast<__half2 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16){
+                conv1d_kernel_k_3<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kBFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kFloat32){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else{
+                printf("Unsupported datatype\n");
+            }
         }else if(u.dtype() == torch::kBFloat16){
-            conv1d_kernel_k_3<<<gridDims, blockDims>>>(
-                static_cast<__nv_bfloat162 *>(u.data_ptr()),
-                static_cast<__nv_bfloat162 *>(weight.data_ptr()),
-                static_cast<__nv_bfloat162 *>(bias.data_ptr()),
-                static_cast<__nv_bfloat162 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16){
+                conv1d_kernel_k_3<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kBFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kFloat32){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else{
+                printf("Unsupported datatype\n");
+            }
         }else if(u.dtype() == torch::kFloat32){
-            conv1d_kernel_k_3<<<gridDims, blockDims>>>(
-                static_cast<float2 *>(u.data_ptr()),
-                static_cast<float2 *>(weight.data_ptr()),
-                static_cast<float2 *>(bias.data_ptr()),
-                static_cast<float2 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16){
+                conv1d_kernel_k_3<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }
+            else if(weight.dtype() == torch::kBFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }
+            else if(weight.dtype() == torch::kFloat32){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }
+            else{
+                printf("Unsupported datatype\n");
+            }
         }else{
             printf("Unsupported datatype\n");
         }
     }else{
         if(u.dtype() == torch::kFloat16){
-            conv1d_kernel<<<gridDims, blockDims>>>(
-                static_cast<__half2 *>(u.data_ptr()),
-                static_cast<__half2 *>(weight.data_ptr()),
-                static_cast<__half2 *>(bias.data_ptr()),
-                static_cast<__half2 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kBFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kFloat32){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__half2 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<__half2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else{
+                printf("Unsupported datatype\n");
+            }
         }else if(u.dtype() == torch::kBFloat16){
-            conv1d_kernel<<<gridDims, blockDims>>>(
-                static_cast<__nv_bfloat162 *>(u.data_ptr()),
-                static_cast<__nv_bfloat162 *>(weight.data_ptr()),
-                static_cast<__nv_bfloat162 *>(bias.data_ptr()),
-                static_cast<__nv_bfloat162 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kBFloat16){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else if(weight.dtype() == torch::kFloat32){
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<__nv_bfloat162 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            }else{
+                printf("Unsupported datatype\n");
+            }
         }else if(u.dtype() == torch::kFloat32){
-            conv1d_kernel<<<gridDims, blockDims>>>(
-                static_cast<float2 *>(u.data_ptr()),
-                static_cast<float2 *>(weight.data_ptr()),
-                static_cast<float2 *>(bias.data_ptr()),
-                static_cast<float2 *>(out.data_ptr()),
-                padding,
-                b,
-                l,
-                l_out,
-                l_eff,
-                ceil(d/2),
-                k);
+            if(weight.dtype() == torch::kFloat16)
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<__half2 *>(weight.data_ptr()),
+                    static_cast<__half2 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            else if(weight.dtype() == torch::kBFloat16)
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(weight.data_ptr()),
+                    static_cast<__nv_bfloat162 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            else if(weight.dtype() == torch::kFloat32)
+                conv1d_kernel<<<gridDims, blockDims>>>(
+                    static_cast<float2 *>(u.data_ptr()),
+                    static_cast<float2 *>(weight.data_ptr()),
+                    static_cast<float2 *>(bias.data_ptr()),
+                    static_cast<float2 *>(out.data_ptr()),
+                    padding,
+                    b,
+                    l,
+                    l_out,
+                    l_eff,
+                    ceil(d/2),
+                    k);
+            else{
+                printf("Unsupported datatype\n");
+            }
         }else{
             printf("Unsupported datatype\n");
         }
     }
-
     return out;
 }
