@@ -8,6 +8,8 @@
 #define CHECK_CUDA(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_IS_HALF_OR_BFLOAT_OR_FLOAT(x) TORCH_CHECK(x.dtype() == torch::kFloat16 || x.dtype() == torch::kBFloat16 || x.dtype() == torch::kFloat32, #x " must be float16 or bfloat16 or float32")
+#define CHECK_SAME_TYPE(x, y) TORCH_CHECK(x.dtype() == y.dtype(), #x " and " #y " must have the same dtype")
+
 #define CHECK_INPUT(x) \
     CHECK_CUDA(x);     \
     CHECK_CONTIGUOUS(x); \
@@ -52,6 +54,7 @@ torch::Tensor conv1d_fwd(
     CHECK_INPUT(u);
     CHECK_INPUT(weight);
     CHECK_INPUT(bias);
+    CHECK_SAME_TYPE(weight, bias);
 
     int k;
 
@@ -82,6 +85,8 @@ std::vector<torch::Tensor> conv1d_bwd(
     CHECK_INPUT(input);
     CHECK_INPUT(weight);
     CHECK_INPUT(bias);
+    CHECK_SAME_TYPE(weight, bias);
+    CHECK_SAME_TYPE(dout, input);
   
     if(is_bhl){
         return conv1d_backward_bhl_cuda(dout, input, weight, bias, padding);
