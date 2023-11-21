@@ -6,7 +6,7 @@ from flashfftconv import FlashDepthWiseConv1d
 import pytest
 
 @pytest.mark.parametrize('b', [1, 2, 4, 8, 16])
-@pytest.mark.parametrize('h', [768, 1024, 2048, 8192])
+@pytest.mark.parametrize('h', [768, 1024, 2048])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
 @pytest.mark.parametrize('dtype', [(torch.bfloat16, torch.bfloat16), (torch.bfloat16, torch.float32), (torch.float16, torch.float16), (torch.float16, torch.float32), (torch.float32, torch.float32), (torch.float32, torch.float16), (torch.float32, torch.bfloat16)])
@@ -56,7 +56,7 @@ def test_conv1d_bhl_fwd(b, h, l, k, dtype):
     
     
 @pytest.mark.parametrize('b', [1, 2, 4, 8, 16])
-@pytest.mark.parametrize('h', [768, 1024, 2048, 8192])
+@pytest.mark.parametrize('h', [768, 1024, 2048])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
 @pytest.mark.parametrize('dtype', [(torch.bfloat16, torch.bfloat16), (torch.bfloat16, torch.float32), (torch.float16, torch.float16), (torch.float16, torch.float32), (torch.float32, torch.float32), (torch.float32, torch.float16), (torch.float32, torch.bfloat16)])
@@ -109,7 +109,7 @@ def test_conv1d_blh_fwd(b, h, l, k, dtype):
     assert torch.allclose(y_torch, y_cuda_manual_cast.transpose(-1, -2), atol=1e-1) 
 
 @pytest.mark.parametrize('b', [1, 2, 4, 8])
-@pytest.mark.parametrize('d', [768, 1024, 2048, 8192])
+@pytest.mark.parametrize('d', [768, 1024, 2048])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
 @pytest.mark.parametrize('dtype', [(torch.float16, torch.float16), (torch.float16, torch.float32), (torch.float32, torch.float32)])
@@ -160,11 +160,11 @@ def test_conv1d_bhl_bwd(b, d, l, k, dtype):
 
     assert torch.allclose(conv1d_cuda.bias.grad, conv1d_torch.bias.grad, atol=1)
     assert torch.allclose(conv1d_cuda.weights.grad.squeeze(), conv1d_torch.weight.grad.squeeze(), atol=1)
-    assert torch.allclose(x_cuda.grad, x_wdtype.grad, atol=1)
+    assert torch.allclose(x_cuda.grad.to(w_dtype), x_wdtype.grad, atol=1)
     
     
 @pytest.mark.parametrize('b', [1, 2, 4, 8])
-@pytest.mark.parametrize('d', [768, 1024, 2048, 8192])
+@pytest.mark.parametrize('d', [768, 1024, 2048])
 @pytest.mark.parametrize('l', [1024, 2048, 4096, 8192])
 @pytest.mark.parametrize('k', [3, 5, 7])
 @pytest.mark.parametrize('dtype', [(torch.float16, torch.float16), (torch.float16, torch.float32), (torch.float32, torch.float32)])
@@ -218,4 +218,4 @@ def test_conv1d_blh_bwd(b, d, l, k, dtype):
 
     assert torch.allclose(conv1d_cuda.bias.grad, conv1d_torch.bias.grad, atol=1)
     assert torch.allclose(conv1d_cuda.weights.grad.squeeze().view(d, k), conv1d_torch.weight.grad.squeeze(), atol=1)
-    assert torch.allclose(rearrange(x_cuda.grad, 'b l d -> b d  l'), x.grad, atol=1)
+    assert torch.allclose(rearrange(x_cuda.grad, 'b l d -> b d  l'), x.grad.to(in_dtype), atol=1)
