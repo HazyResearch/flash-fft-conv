@@ -197,14 +197,17 @@ flash_conv1d = FlashDepthWiseConv1d(
     padding=padding,
     weights=conv1d_torch.weight,
     bias=conv1d_torch.bias,
-    dtype = dtype
+    dtype = dtype # this should be the dtype of the weights
 )
 
 out_torch = conv1d_torch(x) # x is B, d, L
-out_flash = flash_conv1d(x)
+out_flash = flash_conv1d(x) # x can be a different dtype than weights
 
 # out_torch and out_flash should be the same!
 ```
+
+To support mixed precision training, `FlashDepthWiseConv1d` supports using fp32 weights with fp16 inputs (or fp32 inputs).
+Currently the bf16 backward pass has a bug, but the forward pass is supported.
 
 ## Benchmarking
 
