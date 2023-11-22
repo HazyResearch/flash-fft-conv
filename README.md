@@ -10,7 +10,8 @@ This module is useful for additional speedup for language models like Monarch Mi
 
 **FlashFFTConv: Efficient Convolutions for Long Sequences with Tensor Cores**  
 Daniel Y. Fu\*, Hermann Kumbong\*, Eric Nguyen, Christopher Ré\
-Paper: https://arxiv.org/abs/2311.05908
+Paper: https://arxiv.org/abs/2311.05908 \
+Blog: https://hazyresearch.stanford.edu/blog/2023-11-13-flashfftconv
 
 ![FlashFFTConv](assets/banner.png)
 
