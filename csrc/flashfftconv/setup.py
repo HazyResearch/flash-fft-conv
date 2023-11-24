@@ -22,6 +22,7 @@ TORCH_MAJOR: int = TORCH_VERSION.major
 TORCH_MINOR: int = TORCH_VERSION.minor
 
 EXTENSION_NAME: str = 'monarch_cuda'
+EXTENDED_CAPABILITIES: Tuple[int, ...] = (89, 90)
 
 
 @cache
@@ -57,33 +58,61 @@ def raise_if_cuda_home_none(global_option: str) -> None:
 
 def append_nvcc_threads(nvcc_extra_args: List[str]) -> List[str]:
 
-    _, bare_metal_version = get_cuda_bare_metal_version(CUDA_PATH)
+    _, version = get_cuda_bare_metal_version(CUDA_PATH)
 
-    if bare_metal_version >= Version("11.2"):
+    if version >= Version("11.2"):
 
         nvcc_extra_args.extend(("--threads", "4"))
 
     return nvcc_extra_args
 
 
-def build_compiler_flags() -> List[str]:
+def arch_flags(compute: int, ptx: bool = False) -> str:
 
-    flags = ["-gencode", "arch=compute_80,code=sm_80"]
+    build = 'compute' if ptx else 'sm'
 
-    _, bare_metal_version = get_cuda_bare_metal_version(CUDA_PATH)
+    return f'arch=compute_{compute},code={build}_{compute}'
 
-    if bare_metal_version < Version("11.0"):
 
-        raise RuntimeError(f"{EXTENSION_NAME} is only supported on CUDA 11 and above")
+class CompilerFlags(List[str]):
 
-    elif bare_metal_version >= Version("11.8"):
+    def add_arch(self, compute: int, ptx: bool = True, sass: bool = False):
 
-        flags.extend(
-            [
-                "-gencode", "arch=compute_89,code=sm_89",
-                "-gencode", "arch=compute_90,code=sm_90",
-            ]
-        )
+        if ptx:
+
+            self.append("-gencode")
+            self.append(arch_flags(compute, True))
+
+        if sass:
+
+            self.append("-gencode")
+            self.append(arch_flags(compute, False))
+
+        return self
+
+
+def build_compiler_flags(
+    ptx: bool = True, sass: bool = False, multi_arch: bool = False
+) -> List[str]:
+
+    flags = (
+        CompilerFlags()
+        .add_arch(compute=80, ptx=ptx, sass=sass)
+    )
+
+    if multi_arch:
+
+        _, version = get_cuda_bare_metal_version(CUDA_PATH)
+
+        if version < Version("11.0"):
+
+            raise RuntimeError(f"{EXTENSION_NAME} is only supported on CUDA 11 and above")
+
+        elif version >= Version("11.8"):
+
+            for compute in EXTENDED_CAPABILITIES:
+
+                flags.add_arch(compute=compute, ptx=ptx, sass=sass)
 
     return flags
 
@@ -93,9 +122,8 @@ if not torch.cuda.is_available():
     print(
         "\nWarning: Torch did not find available GPUs on this system.\n",
         "If your intention is to cross-compile, this is not an error.\n"
-        "By default, Apex will cross-compile for Pascal (compute capabilities 6.0, 6.1, 6.2),\n"
-        "Volta (compute capability 7.0), Turing (compute capability 7.5),\n"
-        "and, if the CUDA version is >= 11.0, Ampere (compute capability 8.0).\n"
+        "By default, FlashFFTConv will cross-compile for Ampere (compute capabilities 8.0 and 8.6) "
+        "and if CUDA version >= 11.8, Ada (compute capability 8.9) and Hopper (compute capability 9.0).\n"
         "If you wish to cross-compile for a single specific architecture,\n"
         'export TORCH_CUDA_ARCH_LIST="compute capability" before running setup.py.\n',
     )
@@ -133,8 +161,8 @@ setup(
     name='monarch_cuda',
     ext_modules=[
         CUDAExtension(
-            EXTENSION_NAME,
-            [
+            name=EXTENSION_NAME,
+            sources=[
                 'monarch.cpp',
                 'monarch_cuda/monarch_cuda_interface_fwd.cu',
                 'monarch_cuda/monarch_cuda_interface_fwd_complex.cu',
@@ -166,7 +194,7 @@ setup(
                     'cxx': ['-O3'],
                     'nvcc': append_nvcc_threads(
                         ['-O3', '-lineinfo', '--use_fast_math', '-std=c++17']
-                        + build_compiler_flags()
+                        + build_compiler_flags(ptx=True, sass=False, multi_arch=False)
                     ),
                 }
             ),
