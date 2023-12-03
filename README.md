@@ -48,7 +48,7 @@ cd flash-fft-conv
 cd csrc/flashfftconv
 python setup.py install
 
-cd ../../..
+cd ../..
 
 python setup.py install
 ```
