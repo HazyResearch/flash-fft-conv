@@ -168,11 +168,11 @@ class MonarchMixerSequenceMixingFlashFFTConv(nn.Module):
 
             v = v.contiguous()
             yu = self.flashfftconv(v, k2)
+        
+        y = y * x2
 
         if self.residual_long_conv:
             y = y + yu
-        
-        y = y * x2
 
         y = y.transpose(-1, -2)
 
