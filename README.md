@@ -40,6 +40,13 @@ To check your CUDA version:
 * Run `nvcc --version` and check the version number of your CUDA toolkit. Our Docker ships with version 12.1.
 * Run `nvidia-smi` to check the version of your CUDA drivers. Our Docker ships with version 12.1.
 
+You can install via pip:
+```bash
+pip install git+https://github.com/HazyResearch/flash-fft-conv.git#subdirectory=csrc/flashfftconv
+pip install git+https://github.com/HazyResearch/flash-fft-conv.git
+```
+
+Or from source:
 ```bash
 git clone https://github.com/HazyResearch/flash-fft-conv.git
 
