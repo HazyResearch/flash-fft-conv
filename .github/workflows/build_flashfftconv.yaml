@@ -6,6 +6,9 @@ on:
     tags:
       - "wheel*"
 
+env:
+  MAX_JOBS: 2
+
 jobs:
   monarch_cuda_wheels_cuda:
     uses:
