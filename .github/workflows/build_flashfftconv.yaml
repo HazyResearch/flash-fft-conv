@@ -7,14 +7,14 @@ on:
       - "wheel*"
 
 jobs:
-  flashflashfftconv_monarch_cuda_wheels_cuda:
+  monarch_cuda_wheels_cuda:
     uses:
       ./.github/workflows/workflow_build_cuda_wheels.yaml
     with:
       setuppypath: ${{ github.workspace }}/csrc/flashfftconv
     secrets: inherit
 
-  flashflashfftconv_monarch_cuda_wheels_cuda:
+  flashfftconv_nocuda_wheels:
     uses:
       ./.github/workflows/workflow_build_cuda_wheels.yaml
     with:
