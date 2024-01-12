@@ -11,7 +11,7 @@ jobs:
     uses:
       ./.github/workflows/workflow_build_cuda_wheels.yaml
     with:
-      setuppypath:"csrc/flashfftconv"
+      setuppypath: "csrc/flashfftconv"
     secrets: inherit
 
   flashfftconv_nocuda_wheels:
