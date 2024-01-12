@@ -61,8 +61,11 @@ setup(
             'conv1d/conv1d_bwd_cuda_blh.cu',
         ],
         extra_compile_args={'cxx': ['-O3'],
-                             'nvcc': append_nvcc_threads(['-O3', '-lineinfo', '--use_fast_math', '-std=c++17'] + cc_flag)
-                            })
+                            'nvcc': ['-O3', '--threads', '4', '-lineinfo', '--use_fast_math', '-std=c++17', '--generate-code=arch=compute_80,code=compute_80']}
+        # extra_compile_args={'cxx': ['-O3'],
+        #                      'nvcc': append_nvcc_threads(['-O3', '-lineinfo', '--use_fast_math', '-std=c++17'] + cc_flag)
+        #                     }
+        )
     ],
     cmdclass={
         'build_ext': BuildExtension
