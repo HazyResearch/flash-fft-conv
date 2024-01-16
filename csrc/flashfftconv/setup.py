@@ -24,9 +24,9 @@ def append_nvcc_threads(nvcc_extra_args):
         return nvcc_extra_args + ["--threads", "4"]
     return nvcc_extra_args
 
-arch = get_last_arch_torch()
+# arch = get_last_arch_torch()
 # [MP] make install more flexible here
-sm_num = arch[-2:]
+# sm_num = arch[-2:]
 cc_flag = ['--generate-code=arch=compute_80,code=compute_80']
 
 
@@ -61,8 +61,11 @@ setup(
             'conv1d/conv1d_bwd_cuda_blh.cu',
         ],
         extra_compile_args={'cxx': ['-O3'],
-                             'nvcc': append_nvcc_threads(['-O3', '-lineinfo', '--use_fast_math', '-std=c++17'] + cc_flag)
-                            })
+                            'nvcc': ['-O3', '--threads', '4', '-lineinfo', '--use_fast_math', '-std=c++17', '--generate-code=arch=compute_80,code=compute_80']}
+        # extra_compile_args={'cxx': ['-O3'],
+        #                      'nvcc': append_nvcc_threads(['-O3', '-lineinfo', '--use_fast_math', '-std=c++17'] + cc_flag)
+        #                     }
+        )
     ],
     cmdclass={
         'build_ext': BuildExtension
