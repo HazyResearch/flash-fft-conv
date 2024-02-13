@@ -3,11 +3,6 @@ from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
 import subprocess
 
-def get_last_arch_torch():
-    arch = torch.cuda.get_arch_list()[-1]
-    print(f"Found arch: {arch} from existing torch installation")
-    return arch
-
 def get_cuda_bare_metal_version(cuda_dir):
     raw_output = subprocess.check_output([cuda_dir + "/bin/nvcc", "-V"], universal_newlines=True)
     output = raw_output.split()
@@ -24,11 +19,7 @@ def append_nvcc_threads(nvcc_extra_args):
         return nvcc_extra_args + ["--threads", "4"]
     return nvcc_extra_args
 
-arch = get_last_arch_torch()
-# [MP] make install more flexible here
-sm_num = arch[-2:]
 cc_flag = ['--generate-code=arch=compute_80,code=compute_80']
-
 
 setup(
     name='monarch_cuda',
