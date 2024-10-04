@@ -19,8 +19,6 @@ from monarch_cuda import monarch_conv_forward, monarch_conv_backward, \
 from monarch_cuda import butterfly_forward, butterfly_ifft_forward, butterfly_padded_forward, butterfly_ifft_padded_forward, butterfly_padded_gated_forward, butterfly_ifft_padded_gated_forward
 from monarch_cuda import butterfly_bf16_forward, butterfly_ifft_bf16_forward, butterfly_padded_bf16_forward, butterfly_ifft_padded_bf16_forward, butterfly_padded_gated_bf16_forward, butterfly_ifft_padded_gated_bf16_forward
 
-torch.manual_seed(23)
-
 def fft_matrix(N):
     n = torch.arange(N)
     k = n.view(-1, 1)
