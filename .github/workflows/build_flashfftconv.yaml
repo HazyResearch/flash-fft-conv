@@ -1,0 +1,25 @@
+name: Build Wheels
+
+on:
+  push:
+    # push on github tags that start with "wheel"
+    tags:
+      - "wheel*"
+
+env:
+  MAX_JOBS: 2
+
+jobs:
+  monarch_cuda_wheels_cuda:
+    uses:
+      ./.github/workflows/workflow_build_cuda_wheels.yaml
+    with:
+      setuppypath: "csrc/flashfftconv"
+    secrets: inherit
+
+  flashfftconv_nocuda_wheels:
+    uses:
+      ./.github/workflows/workflow_build_cuda_wheels.yaml
+    with:
+      setuppypath: ""
+    secrets: inherit
