@@ -283,11 +283,11 @@ You can reach Dan at [danfu@cs.stanford.edu](mailto:danfu@cs.stanford.edu).
 
 You can also cite our work:
 ```
-@article{fu2023flashfftconv,
+@inproceedings{fu2024flashfftconv,
   title={Flash{FFTC}onv: Efficient Convolutions for Long Sequences with Tensor Cores},
   author={Fu, Daniel Y. and Kumbong, Hermann and Nguyen, Eric and R{\'e}, Christopher},
-  booktitle={arXiv preprint arXiv:2311.05908},
-  year={2023}
+  booktitle={International Conference on Learning Representations},
+  year={2024}
 }
 
 @inproceedings{fu2023monarch,
